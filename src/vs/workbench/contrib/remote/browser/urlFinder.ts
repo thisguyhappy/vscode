@@ -154,6 +154,14 @@ export class UrlFinder extends Disposable {
 			return;
 		}
 
+		// Only process data that contains a newline character.
+		// This filters out echoed keystrokes (user typing) which don't have newlines,
+		// while still processing actual process output which typically ends with newlines.
+		// This ensures we only detect URLs in process output, not in user input.
+		if (!data.includes('\n') && !data.includes('\r')) {
+			return;
+		}
+
 		// strip ANSI terminal codes
 		data = removeAnsiEscapeCodes(data);
 		const urlMatches = data.match(UrlFinder.localUrlRegex) || [];

@@ -59,7 +59,8 @@ suite('UrlFinder', () => {
 		const matchedUrls: { host: string; port: number }[] = [];
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
-		mockInstance.fireData('Server running at http://localhost:3000/');
+		// Include newline to simulate actual process output
+		mockInstance.fireData('Server running at http://localhost:3000/\n');
 
 		assert.strictEqual(matchedUrls.length, 1);
 		assert.strictEqual(matchedUrls[0].host, 'localhost');
@@ -77,7 +78,8 @@ suite('UrlFinder', () => {
 		const matchedUrls: { host: string; port: number }[] = [];
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
-		mockInstance.fireData('https://127.0.0.1:5001/api');
+		// Include newline to simulate actual process output
+		mockInstance.fireData('https://127.0.0.1:5001/api\n');
 
 		assert.strictEqual(matchedUrls.length, 1);
 		assert.strictEqual(matchedUrls[0].host, '127.0.0.1');
@@ -95,7 +97,8 @@ suite('UrlFinder', () => {
 		const matchedUrls: { host: string; port: number }[] = [];
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
-		mockInstance.fireData('http://0.0.0.0:4000');
+		// Include newline to simulate actual process output
+		mockInstance.fireData('http://0.0.0.0:4000\n');
 
 		assert.strictEqual(matchedUrls.length, 1);
 		assert.strictEqual(matchedUrls[0].host, '0.0.0.0');
@@ -113,8 +116,8 @@ suite('UrlFinder', () => {
 		const matchedUrls: { host: string; port: number }[] = [];
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
-		// Create a large data chunk (> 2KB) with a URL embedded
-		const largeData = 'x'.repeat(2001) + 'http://localhost:3000/' + 'x'.repeat(100);
+		// Create a large data chunk (> 2KB) with a URL embedded and a newline
+		const largeData = 'x'.repeat(2001) + 'http://localhost:3000/' + 'x'.repeat(100) + '\n';
 		mockInstance.fireData(largeData);
 
 		// URL should not be detected because data is too large
@@ -132,8 +135,8 @@ suite('UrlFinder', () => {
 		const matchedUrls: { host: string; port: number }[] = [];
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
-		// Create a data chunk under 2KB with a URL
-		const normalData = 'Server started at http://localhost:8080/';
+		// Create a data chunk under 2KB with a URL and newline
+		const normalData = 'Server started at http://localhost:8080/\n';
 		mockInstance.fireData(normalData);
 
 		assert.strictEqual(matchedUrls.length, 1, 'URLs should be detected in normal-sized data chunks');
@@ -152,8 +155,9 @@ suite('UrlFinder', () => {
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
 		// Fire more than 50 events rapidly (rate limit is 50 per second)
+		// Include newlines to ensure data is processed
 		for (let i = 0; i < 60; i++) {
-			mockInstance.fireData(`http://localhost:${3000 + i}/`);
+			mockInstance.fireData(`http://localhost:${3000 + i}/\n`);
 		}
 
 		// Should have rate limited after 50 events
@@ -172,7 +176,8 @@ suite('UrlFinder', () => {
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
 		// IP address without port should not be matched (not a valid URL)
-		mockInstance.fireData('Connected to 127.0.0.1');
+		// Include newline so data is processed
+		mockInstance.fireData('Connected to 127.0.0.1\n');
 
 		assert.strictEqual(matchedUrls.length, 0, 'IP addresses without ports should not be matched');
 	});
@@ -188,10 +193,10 @@ suite('UrlFinder', () => {
 		const matchedUrls: { host: string; port: number }[] = [];
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
-		// Port 0 is invalid
-		mockInstance.fireData('http://localhost:0/');
-		// Port > 65535 is invalid
-		mockInstance.fireData('http://localhost:70000/');
+		// Port 0 is invalid (include newline)
+		mockInstance.fireData('http://localhost:0/\n');
+		// Port > 65535 is invalid (include newline)
+		mockInstance.fireData('http://localhost:70000/\n');
 
 		assert.strictEqual(matchedUrls.length, 0, 'Invalid ports should not be matched');
 	});
@@ -207,10 +212,28 @@ suite('UrlFinder', () => {
 		const matchedUrls: { host: string; port: number }[] = [];
 		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
 
-		mockInstance.fireData('Server A at http://localhost:3000/ and Server B at http://localhost:4000/');
+		// Include newline to simulate actual process output
+		mockInstance.fireData('Server A at http://localhost:3000/ and Server B at http://localhost:4000/\n');
 
 		assert.strictEqual(matchedUrls.length, 2);
 		assert.strictEqual(matchedUrls[0].port, 3000);
 		assert.strictEqual(matchedUrls[1].port, 4000);
+	});
+
+	test('should not process data without newlines (user typing)', () => {
+		const store = ds.add(new DisposableStore());
+		const mockInstance = store.add(new MockTerminalInstance());
+		const terminalService = createMockTerminalService([mockInstance as unknown as ITerminalInstance], store);
+		const debugService = createMockDebugService(store);
+
+		const urlFinder = store.add(new UrlFinder(terminalService, debugService));
+
+		const matchedUrls: { host: string; port: number }[] = [];
+		store.add(urlFinder.onDidMatchLocalUrl((url: { host: string; port: number }) => matchedUrls.push(url)));
+
+		// Simulate user typing - no newline, so this should not be processed
+		mockInstance.fireData('http://localhost:3000/');
+
+		assert.strictEqual(matchedUrls.length, 0, 'URLs without newlines should not be detected (user typing)');
 	});
 });
